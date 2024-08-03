@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Home Value Change</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        #map {
+            width: 100%;
+            height: 600px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <script>
+        console.log("Loading data...");
+
+        fetch('/data')
+            .then(response => response.json())
+            .then(data => {
+                console.log("Data loaded:", data);
+
+                var features = data.features;
+                var traces = [];
+
+                features.forEach(feature => {
+                    var coordinates = feature.geometry.coordinates;
+                    var lat = [];
+                    var lon = [];
+                    var componentCount = 0;
+
+                    // Recursive function to process and flatten coordinates
+                    function processCoordinates(coords) {
+                        if (Array.isArray(coords[0])) {
+                            coords.forEach(innerCoord => {
+                                processCoordinates(innerCoord);
+                                componentCount++;
+                            });
+                        } else {
+                            lon.push(coords[0]);
+                            lat.push(coords[1]);
+                            componentCount++;
+                        }
+                    }
+
+                    // Process coordinates and count components
+                    coordinates.forEach(coord => {
+                        processCoordinates(coord);
+                    });
+
+                    console.log(`ZIP Code ${feature.properties.ZCTA5CE20} has ${componentCount} polygon components.`);
+
+                    var home_value_change = feature.properties.home_value_change;
+                    var text = `ZIP Code: ${feature.properties.ZCTA5CE20}<br>Change: ${home_value_change}%`;
+
+                    // Convert home value change to a color between blue and cyan
+                    var color = `rgba(0, ${Math.min(255, home_value_change * 12.75)}, 255, 0.7)`;
+                    var line_color = `rgba(0, ${Math.min(255, home_value_change * 12.75)}, 255, 1)`;
+
+                    traces.push({
+                        type: 'scattermapbox',
+                        lat: lat,
+                        lon: lon,
+                        mode: 'lines',
+                        fill: 'toself',
+                        fillcolor: color,
+                        line: {
+                            width: 2,
+                            color: line_color
+                        },
+                        hoverinfo: 'none'
+                    });
+
+                    // Use centroid coordinates for labeling
+                    var centroid_lat = parseFloat(feature.properties.INTPTLAT20);
+                    var centroid_lon = parseFloat(feature.properties.INTPTLON20);
+                    var text_label = `${feature.properties.ZCTA5CE20}`;
+                    console.log(`Centroid for ZIP ${text_label}: (${centroid_lat}, ${centroid_lon})`);
+
+                    // Add hover info for the ZIP code and home value change metric
+                    traces.push({
+                        type: 'scattermapbox',
+                        lat: [centroid_lat],
+                        lon: [centroid_lon],
+                        mode: 'markers',  // Combine markers and text
+                        marker: {
+                            size: 4,
+                            color: 'black'
+                        },
+                        hoverinfo: 'none'
+                    });
+
+                    // Add hover info for the ZIP code and home value change metric
+                    traces.push({
+                        type: 'scattermapbox',
+                        lat: [centroid_lat],
+                        lon: [centroid_lon],
+                        mode: 'markers+text',  // Combine markers and text
+                        text: [text],  // Ensure text is set correctly
+                        marker: {
+                            size: 0,
+                            color: color
+                        },
+                        textfont: {
+                            size: 14,
+                            color: 'black'
+                        },
+                        hoverinfo: 'text'
+                    });
+                });
+
+                var layout = {
+                    mapbox: {
+                        style: "carto-positron",
+                        center: {
+                            lat: 38.8339,
+                            lon: -104.8214
+                        },
+                        zoom: 10
+                    },
+                    title: 'Change in Home Value by Zip Code (Colorado Springs)',
+                    height: 900,
+                    margin: {
+                        l: 0,
+                        r: 0,
+                        t: 50,
+                        b: 0
+                    },
+                    showlegend: false
+                };
+
+                Plotly.newPlot('map', traces, layout, {mapboxAccessToken: 'YOUR_MAPBOX_ACCESS_TOKEN'});
+                console.log("Plotly plot rendered.");
+            })
+            
+            .catch(error => {
+                console.error("Error loading data:", error);
+            });
+    </script>
+</body>
+</html>
